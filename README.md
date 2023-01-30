@@ -68,6 +68,94 @@ Finally, I created a CRON job that runs the Python script once a day. I am using
 
 I also created a Flask app that allows me to run the script on-demand. This allows me to update the board without waiting for the cron job to run.
 
+### The Code
+First we import the libraries we need, and the config file:
+```python
+import csv, urllib.request, os
+from datetime import date, datetime
+from vestaboard.formatter import Formatter
+import config
+
+URL = config.googlesheets_url
+```
+Then we define the function that will calculate the number of days until a future date: 
+```python
+def days_until(futuredate):
+    futuredate = datetime.date(datetime.strptime(futuredate, "%Y-%m-%d"))
+    return abs((futuredate - date.today()).days)
+```
+
+Next we define the function that will update the Vestaboard. First we read the CSV file from the Google Sheet, and define variables that will keep track of Events:
+```python
+def update_vestaboard():
+    response = urllib.request.urlopen(URL)
+    lines = [l.decode('utf-8') for l in response.readlines()]
+    cr = csv.reader(lines)
+
+    lineNum = 0
+    state = 'START'
+    showEvents = False
+    showMessage = False
+    events = []
+    message = ''
+```
+
+Then we loop over the contents of the CSV file and build up the list of events and the message. Note that the CSV file has flags for displaying the Events and Message, so we only add them to the list if the flag is set to `ON`:
+```python
+    for row in cr:
+        lineNum += 1
+        match row[0]:
+            case "DAYS UNTIL":
+                state = 'DAYS UNTIL'
+                if (row[1] == 'ON'):
+                    showEvents = True
+            case "MESSAGE":
+                state = 'MESSAGE'
+                if (row[1] == 'ON'):
+                    showMessage = True
+            case default:
+                match state:
+                    case 'DAYS UNTIL':
+                        if (showEvents and row[0] != '' and row[1] != ''):
+                            events.append([row[0], str(days_until(row[1]))])
+                    case 'MESSAGE':
+                        if (showMessage and row[0] != ''):
+                            message += row[0]
+```
+
+We then create the actual lines that need to be sent to the Vestaboard. We first create the lines for the events, and then the line for the message. Note that we use the `convertLine` method from the Vestaboard library to convert the string to the correct character codes:
+```python
+    lines = []
+
+    # Create the list of event lines to send to the Vestaboard
+    if showEvents:
+        lines.append(Formatter().convertLine('DAYS TILL:', justify='left'))
+        for event in events:
+            lines.append(Formatter().convertLine('  ' + event[0].ljust(10) + event[1].rjust(3), justify='left'))
+    # Create the message line and add it to the lines to send to the Vestaboard
+    if showMessage:
+        for i in range (5 - len(lines)):
+            lines.append(Formatter().convertLine(''))
+        lines.append(Formatter().convertLine(message, justify='center'))
+```      
+
+At the end, because the Vestaboard supports 6 lines in total, we need to add empty lines if there are less than 6 lines:
+```python
+    # Add blank lines to the end of the lines to send to the Vestaboard if there are less than 6 lines
+    if len(lines) < 6:
+        for i in range(6 - len(lines)):
+            lines.append(Formatter().convertLine(''))
+```
+
+Finally, we add empty lines if needed, and then send the lines to the Vestaboard local API using the `urllib.request` library:
+```python
+    req = urllib.request.Request('http://' + config.vestaboard_ip + ':7000/local-api/message', method="POST")
+    req.add_header('X-Vestaboard-Local-Api-Key', config.vestaboard_key)
+    data = str(lines)
+    data = data.encode()
+    r = urllib.request.urlopen(req, data=data)
+```
+
 ### Config file
 You will need to add a config.py file with the following contents:
 

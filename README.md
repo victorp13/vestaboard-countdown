@@ -147,7 +147,7 @@ At the end, because the Vestaboard supports 6 lines in total, we need to add emp
             lines.append(Formatter().convertLine(''))
 ```
 
-Finally, we add empty lines if needed, and then send the lines to the Vestaboard local API using the `urllib.request` library:
+Finally, we send the lines to the Vestaboard local API using the `urllib.request` library:
 ```python
     req = urllib.request.Request('http://' + config.vestaboard_ip + ':7000/local-api/message', method="POST")
     req.add_header('X-Vestaboard-Local-Api-Key', config.vestaboard_key)

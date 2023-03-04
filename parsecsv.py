@@ -50,7 +50,7 @@ def update_vestaboard():
     if showEvents:
         lines.append(Formatter().convertLine('DAYS TILL:', justify='left'))
         for event in events:
-            lines.append(Formatter().convertLine('  ' + event[0].ljust(10) + event[1].rjust(3), justify='left'))
+            lines.append(Formatter().convertLine('  ' + event[0].ljust(15) + event[1].rjust(3), justify='left'))
     # Create the message line and add it to the lines to send to the Vestaboard
     if showMessage:
         for i in range (5 - len(lines)):
@@ -66,11 +66,17 @@ def update_vestaboard():
     print(lines)
 
     # Send the lines to the Vestaboard
+    # Only send the lines when showEvents or showMessage is True
+    if showEvents or showMessage:
+        send_lines(lines)
+
+def send_lines(lines):
     req = urllib.request.Request('http://' + config.vestaboard_ip + ':7000/local-api/message', method="POST")
     req.add_header('X-Vestaboard-Local-Api-Key', config.vestaboard_key)
     data = str(lines)
     data = data.encode()
     r = urllib.request.urlopen(req, data=data)
+
 
 # This if statement guarantees that update_vestaboard function runs when this file is called directly. It allows me to both call the main function from the Flask server as well as run this script from the command line or cron job.
 if __name__ == '__main__':
